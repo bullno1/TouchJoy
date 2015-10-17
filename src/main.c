@@ -33,8 +33,8 @@ void DebugPrint(const char* format, ...)
 
 typedef enum
 {
-	BTN_NORMAL,
-	BTN_TOGGLE,
+	BTN_KEY,
+	BTN_WHEEL,
 	BTN_QUIT
 } ButtonType;
 
@@ -45,10 +45,23 @@ typedef struct
 	int y;
 	int width;
 	int height;
-	WORD keycode;
 	HBITMAP image;
 	HWND window;
 	char name[GB_INI_MAX_SECTION_LENGTH];
+	union
+	{
+		struct
+		{
+			WORD code;
+			bool sticky;
+		} key;
+
+		struct
+		{
+			int direction;
+			DWORD amount;
+		} wheel;
+	} extras;
 } Button;
 
 typedef struct
@@ -105,16 +118,20 @@ bool LoadButtonImage(const char* path, Button* button)
 
 gb_Ini_HRT GamepadIniHandler(void* data, const char* section, const char* name, const char* value)
 {
+#	define RETURN_ERROR(MSG) \
+	do { \
+		state->error->message = MSG; \
+		return false; \
+	} while (0, 0)
+
+#	define ENSURE(COND, FAIL_MSG) if(!(COND)) { RETURN_ERROR(FAIL_MSG); }
+
 	ParseState* state = (ParseState*)data;
 	Gamepad* gamepad = state->gamepad;
 
 	Button* button = findOrCreateButton(gamepad, section);
 
-	if (!button)
-	{
-		state->error->message = "Number of buttons exceeds limit";
-		return false;
-	}
+	ENSURE(button, "Too many buttons");
 
 	if (STR_EQUAL(name, "x"))
 	{
@@ -126,15 +143,38 @@ gb_Ini_HRT GamepadIniHandler(void* data, const char* section, const char* name, 
 	}
 	else if (STR_EQUAL(name, "keycode"))
 	{
-		button->keycode = (WORD)TO_NUM(value);
+		ENSURE(button->type == BTN_KEY, "Invalid button property");
+		button->extras.key.code = (WORD)TO_NUM(value);
+	}
+	else if (STR_EQUAL(name, "direction"))
+	{
+		ENSURE(button->type == BTN_WHEEL, "Invalid button property");
+
+		if (STR_EQUAL(value, "up"))
+		{
+			button->extras.wheel.direction = 1;
+		}
+		else if (STR_EQUAL(value, "down"))
+		{
+			button->extras.wheel.direction = -1;
+		}
+		else
+		{
+			RETURN_ERROR("Invalid wheel direction");
+		}
+	}
+	else if (STR_EQUAL(name, "amount"))
+	{
+		ENSURE(button->type == BTN_WHEEL, "Invalid button property");
+
+		int amount = strtol(value, 0, 0);
+		ENSURE(amount > 0, "Invalid scroll amount");
+
+		button->extras.wheel.amount = amount;
 	}
 	else if (STR_EQUAL(name, "image"))
 	{
-		if (!LoadButtonImage(value, button))
-		{
-			state->error->message = "Could not load image";
-			return false;
-		}
+		ENSURE(LoadButtonImage(value, button), "Could not load image");
 	}
 	else if (STR_EQUAL(name, "type"))
 	{
@@ -142,25 +182,27 @@ gb_Ini_HRT GamepadIniHandler(void* data, const char* section, const char* name, 
 		{
 			button->type = BTN_QUIT;
 		}
-		else if (STR_EQUAL(value, "normal"))
+		else if (STR_EQUAL(value, "key"))
 		{
-			button->type = BTN_NORMAL;
+			button->type = BTN_KEY;
 		}
-		else if (STR_EQUAL(value, "toggle"))
+		else if (STR_EQUAL(value, "wheel"))
 		{
-			button->type = BTN_TOGGLE;
+			button->type = BTN_WHEEL;
+			button->extras.wheel.amount = 1;
 		}
 		else
 		{
-			state->error->message = "Invalid button type";
-			return false;
+			RETURN_ERROR("Invalid button type");
 		}
 	}
 	else
 	{
-		state->error->message = "Invalid button property";
-		return false;
+		RETURN_ERROR("Invalid button property");
 	}
+
+#	undef RETURN_ERROR
+#	undef ENSURE
 
 	return true;
 }
@@ -207,10 +249,10 @@ LRESULT CALLBACK Paint(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
-void HandleNormalButton(Button* button, bool down)
+void HandleKeyButton(Button* button, bool down)
 {
 	KEYBDINPUT kbInput;
-	kbInput.wVk = button->keycode;
+	kbInput.wVk = button->extras.key.code;
 	kbInput.wScan = 0;
 	kbInput.dwFlags = down ? 0 : KEYEVENTF_KEYUP;
 	kbInput.time = 0;
@@ -223,13 +265,49 @@ void HandleNormalButton(Button* button, bool down)
 	SendInput(1, &input, sizeof(INPUT));
 }
 
-void HandleQuitButton(Button* button)
+void HandleQuitButton(Button* button, bool down)
 {
 	UNUSED(button);
 
-	PostQuitMessage(0);
+	if (!down) { PostQuitMessage(0); }
 }
 
+void HandleWheelButton(Button* button, bool down)
+{
+	if (!down) { return; }
+
+	MOUSEINPUT mouseInput;
+	POINT mousePos;
+	GetCursorPos(&mousePos);
+	mouseInput.dx = mousePos.x;
+	mouseInput.dy = mousePos.y;
+	mouseInput.mouseData = WHEEL_DELTA * button->extras.wheel.direction * button->extras.wheel.amount;
+	mouseInput.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_WHEEL;
+	mouseInput.time = 0;
+	mouseInput.dwExtraInfo = 0;
+
+	INPUT input;
+	input.type = INPUT_MOUSE;
+	input.mi = mouseInput;
+
+	SendInput(1, &input, sizeof(INPUT));
+}
+
+void HandleUpDown(Button* button, bool down)
+{
+	switch (button->type)
+	{
+	case BTN_KEY:
+		HandleKeyButton(button, down);
+		break;
+	case BTN_WHEEL:
+		HandleWheelButton(button, down);
+		break;
+	case BTN_QUIT:
+		HandleQuitButton(button, down);
+		break;
+	}
+}
 
 LRESULT CALLBACK OnTouch(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -238,22 +316,9 @@ LRESULT CALLBACK OnTouch(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 	if (GetTouchInputInfo((HTOUCHINPUT)lParam, 1, &touch, sizeof(TOUCHINPUT)))
 	{
-		POINT pt;
-		pt.x = TOUCH_COORD_TO_PIXEL(touch.x);
-		pt.y = TOUCH_COORD_TO_PIXEL(touch.y);
-		ScreenToClient(hWnd, &pt);
-
 		if (touch.dwFlags & (TOUCHEVENTF_DOWN | TOUCHEVENTF_UP))
 		{
-			switch (button->type)
-			{
-			case BTN_NORMAL:
-				HandleNormalButton(button, touch.dwFlags & TOUCHEVENTF_DOWN);
-				break;
-			case BTN_QUIT:
-				HandleQuitButton(button);
-				break;
-			}
+			HandleUpDown(button, touch.dwFlags & TOUCHEVENTF_DOWN);
 		}
 
 		CloseTouchInputHandle((HTOUCHINPUT)lParam);
@@ -270,17 +335,14 @@ LRESULT CALLBACK OnMouse(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	UNUSED(wParam);
 	UNUSED(lParam);
 
-	BUTTON(hWnd, button);
-
-	switch (button->type)
+	if ((GetMessageExtraInfo() & MOUSEEVENTF_FROMTOUCH) == MOUSEEVENTF_FROMTOUCH)
 	{
-	case BTN_NORMAL:
-		HandleNormalButton(button, uMsg == WM_LBUTTONDOWN);
-		break;
-	case BTN_QUIT:
-		HandleQuitButton(button);
-		break;
+		// This is a fake mouse event
+		return 0;
 	}
+
+	BUTTON(hWnd, button);
+	HandleUpDown(button, uMsg == WM_LBUTTONDOWN);
 
 	return 0;
 }
@@ -303,14 +365,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		return OnTouch(hWnd, uMsg, wParam, lParam);
 	case WM_LBUTTONDOWN:
 	case WM_LBUTTONUP:
-		if((GetMessageExtraInfo() & MOUSEEVENTF_FROMTOUCH) != MOUSEEVENTF_FROMTOUCH)
-		{
-			return OnMouse(hWnd, uMsg, wParam, lParam);
-		}
-		else
-		{
-			return 0;
-		}
+		return OnMouse(hWnd, uMsg, wParam, lParam);
 	default:
 		return DefWindowProc(hWnd, uMsg, wParam, lParam);
 	}
