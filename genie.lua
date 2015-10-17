@@ -10,13 +10,14 @@ solution "touch-joy"
 		language "C"
 
 		defines {
-			"_CRT_SECURE_NO_WARNINGS"
+			"_CRT_SECURE_NO_WARNINGS",
+			"GB_INI_MAX_SECTION_LENGTH=16",
+			"GB_INI_MAX_NAME_LENGTH=16"
 		}
 
 		files {
 			"src/*.h",
-			"src/*.c",
-			"data/*"
+			"src/*.c"
 		}
 
 		flags {
