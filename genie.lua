@@ -15,7 +15,8 @@ solution "touch-joy"
 
 		files {
 			"src/*.h",
-			"src/*.c"
+			"src/*.c",
+			"data/*"
 		}
 
 		flags {
