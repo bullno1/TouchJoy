@@ -68,13 +68,25 @@ gb_Ini_HRT GamepadIniHandler(
 
 	ENSURE(button, "Too many buttons");
 
-	if (STR_EQUAL(name, "x"))
+	if (STR_EQUAL(name, "x") || STR_EQUAL(name, "left"))
 	{
-		button->x = TO_NUM(value);
+		button->hMargin = TO_NUM(value);
+		button->hAnchor = ANCHOR_LEFT;
 	}
-	else if (STR_EQUAL(name, "y"))
+	else if (STR_EQUAL(name, "y") || STR_EQUAL(name, "top"))
 	{
-		button->y = TO_NUM(value);
+		button->vMargin = TO_NUM(value);
+		button->vAnchor = ANCHOR_TOP;
+	}
+	else if (STR_EQUAL(name, "right"))
+	{
+		button->hMargin = TO_NUM(value);
+		button->hAnchor = ANCHOR_RIGHT;
+	}
+	else if (STR_EQUAL(name, "bottom"))
+	{
+		button->vMargin = TO_NUM(value);
+		button->vAnchor = ANCHOR_BOTTOM;
 	}
 	else if (STR_EQUAL(name, "keycode"))
 	{
@@ -142,17 +154,6 @@ gb_Ini_HRT GamepadIniHandler(
 	return true;
 }
 
-void FreeGamepad(Gamepad* gamepad)
-{
-	for (int i = 0; i < gamepad->numButtons; ++i)
-	{
-		Button* button = &gamepad->buttons[i];
-		if (button->image) { DeleteObject(button->image); }
-	}
-
-	gamepad->numButtons = 0;
-}
-
 bool LoadGamepad(const char* path, Gamepad* gamepad, ParseError* error)
 {
 	gamepad->numButtons = 0;
@@ -173,4 +174,41 @@ bool LoadGamepad(const char* path, Gamepad* gamepad, ParseError* error)
 	if (!success) { FreeGamepad(gamepad); }
 
 	return success;
+}
+
+void FreeGamepad(Gamepad* gamepad)
+{
+	for (int i = 0; i < gamepad->numButtons; ++i)
+	{
+		Button* button = &gamepad->buttons[i];
+		if (button->image) { DeleteObject(button->image); }
+	}
+
+	gamepad->numButtons = 0;
+}
+
+int GetButtonX(Button* button)
+{
+	switch (button->hAnchor)
+	{
+	case ANCHOR_LEFT:
+		return button->hMargin;
+	case ANCHOR_RIGHT:
+		return GetSystemMetrics(SM_CXSCREEN) - (button->hMargin + button->width);
+	default:
+		return 0;
+	}
+}
+
+int GetButtonY(Button* button)
+{
+	switch (button->vAnchor)
+	{
+	case ANCHOR_TOP:
+		return button->vMargin;
+	case ANCHOR_BOTTOM:
+		return GetSystemMetrics(SM_CYSCREEN) - (button->vMargin + button->height);
+	default:
+		return 0;
+	}
 }

@@ -175,7 +175,7 @@ void InitializeGamepad(Gamepad* gamepad)
 			"TouchJoy", // Class name
 			button->name, // Title
 			WS_VISIBLE | WS_POPUP, // Styles
-			button->x, button->y, // Position
+			GetButtonX(button), GetButtonY(button), // Position
 			button->width, button->height, // Size
 			NULL, // Parent
 			NULL, // Menu

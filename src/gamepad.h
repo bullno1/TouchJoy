@@ -16,11 +16,25 @@ typedef enum
 	BTN_QUIT
 } ButtonType;
 
+typedef enum
+{
+	ANCHOR_LEFT,
+	ANCHOR_RIGHT
+} HAnchorType;
+
+typedef enum
+{
+	ANCHOR_TOP,
+	ANCHOR_BOTTOM
+} VAnchorType;
+
 typedef struct
 {
 	ButtonType type;
-	int x;
-	int y;
+	HAnchorType hAnchor;
+	VAnchorType vAnchor;
+	int hMargin;
+	int vMargin;
 	int width;
 	int height;
 	HBITMAP image;
@@ -56,5 +70,7 @@ typedef struct
 
 bool LoadGamepad(const char* path, Gamepad* gamepad, ParseError* error);
 void FreeGamepad(Gamepad* gamepad);
+int GetButtonX(Button* button);
+int GetButtonY(Button* button);
 
 #endif
