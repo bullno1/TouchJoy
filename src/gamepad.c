@@ -2,9 +2,7 @@
 #include "gamepad.h"
 #include "gb_ini.h"
 #include "stb_image.h"
-
-#define STR_EQUAL(lhs, rhs) (strcmp(lhs, rhs) == 0)
-#define TO_NUM(x) strtol(x, 0, 0)
+#include "utils.h"
 
 typedef struct
 {

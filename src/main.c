@@ -1,10 +1,10 @@
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRALEAN
 #include <Windows.h>
-#include <ShlObj.h>
 
 #include "gamepad.h"
 #include "gamepad_window.h"
@@ -16,6 +16,10 @@ typedef struct
 {
 	Gamepad gamepad;
 	char configFile[MAX_PATH];
+	char configDir[MAX_PATH];
+	HANDLE shutdownEvent;
+	volatile bool running;
+	HWND msgWindow;
 } ProgramState;
 
 void ShowParseError(ParseError err)
@@ -60,7 +64,7 @@ LRESULT CALLBACK MsgWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 			hWnd,
 			GWLP_USERDATA,
 			(LONG_PTR)(((LPCREATESTRUCT)lParam)->lpCreateParams)
-		);
+			);
 		return 0;
 	case WM_CONFIGCHANGED:
 		ReloadConfig((ProgramState*)(GetWindowLongPtr(hWnd, GWLP_USERDATA)));
@@ -68,6 +72,27 @@ LRESULT CALLBACK MsgWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 	default:
 		return DefWindowProc(hWnd, uMsg, wParam, lParam);
 	}
+}
+
+DWORD WINAPI ConfigMonitorProc(LPVOID lpParameter)
+{
+	ProgramState* state = (ProgramState*)lpParameter;
+
+	HANDLE changeHandle = FindFirstChangeNotification(state->configDir, FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
+	while (state->running)
+	{
+		HANDLE waitObjs[2];
+		waitObjs[0] = changeHandle;
+		waitObjs[1] = state->shutdownEvent;
+		WaitForMultipleObjects(2, waitObjs, FALSE, INFINITE);
+
+		FindNextChangeNotification(changeHandle);
+
+		PostMessage(state->msgWindow, WM_CONFIGCHANGED, 0, 0);
+	}
+	FindCloseChangeNotification(changeHandle);
+
+	return 0;
 }
 
 int CALLBACK WinMain(
@@ -88,12 +113,9 @@ int CALLBACK WinMain(
 	char* namePart;
 	GetFullPathName(configFile, MAX_PATH, state.configFile, &namePart);
 	size_t dirLength = namePart - state.configFile;
-	{
-		char dirName[MAX_PATH];
-		memcpy(dirName, state.configFile, namePart - state.configFile);
-		dirName[dirLength] = 0;
-		SetCurrentDirectory(dirName);
-	}
+	memcpy(state.configDir, state.configFile, namePart - state.configFile);
+	state.configDir[dirLength] = 0;
+	SetCurrentDirectory(state.configDir);
 
 	// Try to load the config file
 	ParseError err;
@@ -115,7 +137,7 @@ int CALLBACK WinMain(
 	wc.hInstance = hInstance;
 	RegisterClass(&wc);
 
-	HWND notifyWindow = CreateWindow(
+	state.msgWindow = CreateWindow(
 		"TouchJoyMessage", // Class name
 		"TouchJoyMessage", // Title
 		0, // Styles
@@ -127,39 +149,22 @@ int CALLBACK WinMain(
 		&state // Extra
 	);
 
-	SHChangeNotifyEntry configEntry;
-	{
-		wchar_t wcFullPath[MAX_PATH];
-		MultiByteToWideChar(
-			CP_ACP,
-			MB_PRECOMPOSED,
-			state.configFile, -1,
-			wcFullPath, MAX_PATH
-		);
-		PIDLIST_ABSOLUTE list;
-		if (SUCCEEDED(SHParseDisplayName(wcFullPath, NULL, &list, 0, NULL)))
-		{
-			configEntry.fRecursive = false;
-			configEntry.pidl = list;
-			SHChangeNotifyRegister(
-				notifyWindow,
-				SHCNRF_ShellLevel | SHCNRF_NewDelivery,
-				SHCNE_UPDATEITEM,
-				WM_CONFIGCHANGED,
-				1,
-				&configEntry
-				);
-		}
-	}
+	// Create a thread to monitor changes to config file
+	state.shutdownEvent = CreateEvent(NULL, FALSE, FALSE, "TouchJoyShutdown");
+	HANDLE threadHandle = CreateThread(NULL, 0, &ConfigMonitorProc, &state, 0, NULL);
 
 	// Message loop
+	state.running = true;
 	MSG msg;
 	while (GetMessage(&msg, NULL, 0, 0) > 0)
 	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
+	state.running = false;
 
+	SetEvent(state.shutdownEvent);
+	WaitForSingleObject(threadHandle, INFINITE);
 	DeinitializeGamepad(&state.gamepad);
 	FreeGamepad(&state.gamepad);
 
@@ -185,15 +190,15 @@ TEST(parse_ini)
 		if (STR_EQUAL(button.name, "up"))
 		{
 			++hit;
-			TEST_ASSERT_EQUAL_INT(30, button.x);
-			TEST_ASSERT_EQUAL_INT(60, button.y);
+			TEST_ASSERT_EQUAL_INT(30, GetButtonX(&button));
+			TEST_ASSERT_EQUAL_INT(60, GetButtonY(&button));
 		}
 
 		if (STR_EQUAL(button.name, "down"))
 		{
 			++hit;
-			TEST_ASSERT_EQUAL_INT(40, button.x);
-			TEST_ASSERT_EQUAL_INT(30, button.y);
+			TEST_ASSERT_EQUAL_INT(40, GetButtonX(&button));
+			TEST_ASSERT_EQUAL_INT(30, GetButtonY(&button));
 		}
 	}
 
