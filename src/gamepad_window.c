@@ -183,7 +183,7 @@ void InitializeGamepad(Gamepad* gamepad)
 			button // Extra param
 		);
 		ShowWindow(hwnd, SW_SHOW);
-		SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), 255, LWA_ALPHA | LWA_COLORKEY);
+		SetLayeredWindowAttributes(hwnd, button->colorKey, 255, LWA_ALPHA | LWA_COLORKEY);
 		RegisterTouchWindow(hwnd, TWF_FINETOUCH | TWF_WANTPALM);
 
 		button->window = hwnd;

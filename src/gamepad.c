@@ -36,9 +36,26 @@ bool LoadButtonImage(const char* path, Button* button)
 	int width, height, comp;
 	stbi_uc* image = stbi_load(path, &width, &height, &comp, 4);
 	if (image == NULL) { return false; }
+
+	// CreateBitmap expects bgra instead of rgba so we have to swizzle
+	for (int i = 0; i < width * height; ++i)
+	{
+		stbi_uc r = image[i * 4 + 0];
+		stbi_uc g = image[i * 4 + 1];
+		stbi_uc b = image[i * 4 + 2];
+		stbi_uc a = image[i * 4 + 3];
+
+		image[i * 4 + 0] = b;
+		image[i * 4 + 1] = g;
+		image[i * 4 + 2] = r;
+		image[i * 4 + 3] = a;
+	}
+
 	button->image = CreateBitmap(width, height, 1, 32, image);
 	button->width = width;
 	button->height = height;
+	button->colorKey = RGB(image[2], image[1], image[0]);
+
 	stbi_image_free(image);
 
 	return button->image != NULL;

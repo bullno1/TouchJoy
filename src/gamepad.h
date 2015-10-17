@@ -38,6 +38,7 @@ typedef struct
 	int width;
 	int height;
 	HBITMAP image;
+	COLORREF colorKey;
 	HWND window;
 	char name[GB_INI_MAX_SECTION_LENGTH];
 	union
