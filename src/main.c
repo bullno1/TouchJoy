@@ -150,7 +150,7 @@ int CALLBACK WinMain(
 	);
 
 	// Create a thread to monitor changes to config file
-	state.shutdownEvent = CreateEvent(NULL, FALSE, FALSE, "TouchJoyShutdown");
+	state.shutdownEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	HANDLE threadHandle = CreateThread(NULL, 0, &ConfigMonitorProc, &state, 0, NULL);
 
 	// Message loop
