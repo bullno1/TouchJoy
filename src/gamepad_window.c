@@ -3,7 +3,6 @@
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRALEAN
 #include <Windows.h>
-#include <windowsx.h>
 
 #include "utils.h"
 
@@ -198,7 +197,7 @@ void InitializeGamepad(Gamepad* gamepad)
 			button // Extra param
 		);
 		ShowWindow(hwnd, SW_SHOW);
-		SetLayeredWindowAttributes(hwnd, button->colorKey, 245, LWA_ALPHA | LWA_COLORKEY);
+		SetLayeredWindowAttributes(hwnd, button->colorKey, 180, LWA_ALPHA | LWA_COLORKEY);
 		RegisterTouchWindow(hwnd, TWF_FINETOUCH | TWF_WANTPALM);
 
 		button->window = hwnd;
