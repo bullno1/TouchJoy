@@ -34,31 +34,51 @@ Button* findOrCreateButton(Gamepad* gamepad, const char* buttonName)
 bool LoadButtonImage(const char* path, Button* button)
 {
 	int width, height, comp;
+	// Loading the image in 32-bit saves us from having to align scanlines ourself
 	stbi_uc* image = stbi_load(path, &width, &height, &comp, 4);
 	if (image == NULL) { return false; }
 
-	// CreateBitmap expects bgra instead of rgba so we have to swizzle
-	for (int i = 0; i < width * height; ++i)
-	{
-		stbi_uc r = image[i * 4 + 0];
-		stbi_uc g = image[i * 4 + 1];
-		stbi_uc b = image[i * 4 + 2];
-		stbi_uc a = image[i * 4 + 3];
+	// Create a DIB section to write to
+	HDC hdc = CreateIC("TouchJoy", "TouchJoy", NULL, NULL);
 
-		image[i * 4 + 0] = b;
-		image[i * 4 + 1] = g;
-		image[i * 4 + 2] = r;
-		image[i * 4 + 3] = a;
+	BITMAPINFO bmi;
+	memset(&bmi, 0, sizeof(bmi));;
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = width;
+	bmi.bmiHeader.biHeight = -height; // Top down image
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 32;
+	bmi.bmiHeader.biCompression = BI_RGB;
+	stbi_uc* out;
+	HBITMAP bitmap = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, &out, NULL, 0);
+
+	// Transfer pixels to the DIB
+	if (bitmap)
+	{
+		// CreateDIBSection expects bgra instead of rgba so we have to swizzle
+		for (int i = 0; i < width * height; ++i)
+		{
+			stbi_uc r = image[i * 4 + 0];
+			stbi_uc g = image[i * 4 + 1];
+			stbi_uc b = image[i * 4 + 2];
+
+			out[i * 4 + 0] = b;
+			out[i * 4 + 1] = g;
+			out[i * 4 + 2] = r;
+		}
+
+		button->image = bitmap;
+		button->width = width;
+		button->height = height;
+		button->colorKey = RGB(image[0], image[1], image[2]);
 	}
 
-	button->image = CreateBitmap(width, height, 1, 32, image);
-	button->width = width;
-	button->height = height;
-	button->colorKey = RGB(image[2], image[1], image[0]);
+	DeleteDC(hdc);
 
 	stbi_image_free(image);
 
-	return button->image != NULL;
+	return bitmap != NULL;
 }
 
 gb_Ini_HRT GamepadIniHandler(

@@ -23,7 +23,7 @@ LRESULT CALLBACK Paint(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	HDC hdc = BeginPaint(hWnd, &ps);
 	HDC buttonDC = CreateCompatibleDC(hdc);
 	SelectObject(buttonDC, button->image);
-	BitBlt(hdc, 0, 0, button->width, button->height, buttonDC, 0, 0, SRCPAINT);
+	BitBlt(hdc, 0, 0, button->width, button->height, buttonDC, 0, 0, SRCCOPY);
 	DeleteDC(buttonDC);
 	EndPaint(hWnd, &ps);
 
@@ -183,7 +183,7 @@ void InitializeGamepad(Gamepad* gamepad)
 			button // Extra param
 		);
 		ShowWindow(hwnd, SW_SHOW);
-		SetLayeredWindowAttributes(hwnd, button->colorKey, 255, LWA_ALPHA | LWA_COLORKEY);
+		SetLayeredWindowAttributes(hwnd, button->colorKey, 245, LWA_ALPHA | LWA_COLORKEY);
 		RegisterTouchWindow(hwnd, TWF_FINETOUCH | TWF_WANTPALM);
 
 		button->window = hwnd;
