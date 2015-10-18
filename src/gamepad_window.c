@@ -57,21 +57,36 @@ void HandleWheelButton(Button* button, bool down)
 {
 	if (!down) { return; }
 
-	MOUSEINPUT mouseInput;
-	POINT mousePos;
-	GetCursorPos(&mousePos);
-	mouseInput.dx = mousePos.x;
-	mouseInput.dy = mousePos.y;
-	mouseInput.mouseData = WHEEL_DELTA * button->extras.wheel.direction * button->extras.wheel.amount;
-	mouseInput.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_WHEEL;
-	mouseInput.time = 0;
-	mouseInput.dwExtraInfo = 0;
+	// Scrolling is a bit tricky.
+	// First we need to move the mouse to the target area.
+	// Then we simulate a scroll event.
+	INPUT inputs[2];
 
-	INPUT input;
-	input.type = INPUT_MOUSE;
-	input.mi = mouseInput;
+	// Move the mouse to a point slightly above and to the left of the button's
+	// top left corner
+	inputs[0].type = INPUT_MOUSE;
+	int x = GetButtonX(button) - 5;
+	int y = GetButtonY(button) - 5;
+	// Windows uses a weird coordinate system for mouse: [0, 65535]
+	int absX = (int)((float)x / (float)GetSystemMetrics(SM_CXSCREEN) * 65535.f);
+	int absY = (int)((float)y / (float)GetSystemMetrics(SM_CYSCREEN) * 65535.f);
+	inputs[0].mi.dx = absX;
+	inputs[0].mi.dy = absY;
+	inputs[0].mi.mouseData = 0;
+	inputs[0].mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+	inputs[0].mi.time = 0;
+	inputs[0].mi.dwExtraInfo = 0;
 
-	SendInput(1, &input, sizeof(INPUT));
+	// Scroll
+	inputs[1].type = INPUT_MOUSE;
+	inputs[1].mi.dx = 0;
+	inputs[1].mi.dy = 0;
+	inputs[1].mi.mouseData = WHEEL_DELTA * button->extras.wheel.direction * button->extras.wheel.amount;
+	inputs[1].mi.dwFlags = MOUSEEVENTF_WHEEL;
+	inputs[1].mi.time = 0;
+	inputs[1].mi.dwExtraInfo = 0;
+
+	SendInput(2, inputs, sizeof(INPUT));
 }
 
 void HandleUpDown(Button* button, bool down)
