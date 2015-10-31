@@ -34,7 +34,8 @@ Button* findOrCreateButton(Gamepad* gamepad, const char* buttonName)
 bool LoadButtonImage(const char* path, Button* button)
 {
 	int width, height, comp;
-	// Loading the image in 32-bit saves us from having to align scanlines ourself
+	// Loading the image in 32-bit saves us from having to align scanlines
+	// ourself
 	stbi_uc* image = stbi_load(path, &width, &height, &comp, 4);
 	if (image == NULL) { return false; }
 

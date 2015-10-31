@@ -108,7 +108,8 @@ void HandleStickButton(Button* button, TouchEvent event, int touchX, int touchY)
 	}
 	else
 	{
-		// In other cases, use the real touch position to calculate stick position
+		// In other cases, use the real touch position to calculate stick
+		// position
 
 		joyX = (float)touchX / (float)button->width * 2.f - 1.f;
 		joyY = (float)touchY / (float)button->height * 2.f - 1.f;
@@ -182,8 +183,9 @@ LRESULT CALLBACK OnTouch(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				event = TOUCH_MOVE;
 			}
 
-			// Once again, Windows uses a funny coordinate system
-			HandleStickButton(button, event, touch.x / 100 - GetButtonX(button), touch.y / 100 - GetButtonY(button));
+			int clientX = touch.x / 100 - GetButtonX(button);
+			int clientY = touch.y / 100 - GetButtonY(button);
+			HandleStickButton(button, event, clientX, clientY);
 		}
 		else if (touch.dwFlags & (TOUCHEVENTF_DOWN | TOUCHEVENTF_UP))
 		{
@@ -199,21 +201,24 @@ LRESULT CALLBACK OnTouch(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	}
 }
 
+bool IsFakeMouseEvent()
+{
+	return (GetMessageExtraInfo() & MOUSEEVENTF_FROMTOUCH) == MOUSEEVENTF_FROMTOUCH;
+}
+
 LRESULT CALLBACK OnMouseButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	UNUSED(wParam);
 
-	if ((GetMessageExtraInfo() & MOUSEEVENTF_FROMTOUCH) == MOUSEEVENTF_FROMTOUCH)
-	{
-		// This is a fake mouse event
-		return 0;
-	}
+	if (IsFakeMouseEvent()) { return 0; }
 
 	BUTTON(hWnd, button);
 	if (button->type == BTN_STICK)
 	{
 		TouchEvent event = uMsg == WM_LBUTTONDOWN ? TOUCH_DOWN : TOUCH_UP;
-		HandleStickButton(button, event, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		HandleStickButton(
+			button, event, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)
+		);
 	}
 	else
 	{
@@ -227,16 +232,14 @@ LRESULT CALLBACK OnMouseMove(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	UNUSED(uMsg);
 
-	if ((GetMessageExtraInfo() & MOUSEEVENTF_FROMTOUCH) == MOUSEEVENTF_FROMTOUCH)
-	{
-		// This is a fake mouse event
-		return 0;
-	}
+	if (IsFakeMouseEvent()) { return 0; }
 
 	BUTTON(hWnd, button);
 	if ((button->type == BTN_STICK) && (wParam & MK_LBUTTON))
 	{
-		HandleStickButton(button, TOUCH_MOVE, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		HandleStickButton(
+			button, TOUCH_MOVE, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)
+		);
 	}
 
 	return 0;
@@ -299,7 +302,9 @@ void InitializeGamepad(Gamepad* gamepad)
 			button // Extra param
 		);
 		ShowWindow(hwnd, SW_SHOW);
-		SetLayeredWindowAttributes(hwnd, button->colorKey, 180, LWA_ALPHA | LWA_COLORKEY);
+		SetLayeredWindowAttributes(
+			hwnd, button->colorKey, 180, LWA_ALPHA | LWA_COLORKEY
+		);
 		RegisterTouchWindow(hwnd, TWF_FINETOUCH | TWF_WANTPALM);
 
 		button->window = hwnd;

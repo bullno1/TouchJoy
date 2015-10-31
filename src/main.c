@@ -78,7 +78,9 @@ DWORD WINAPI ConfigMonitorProc(LPVOID lpParameter)
 {
 	ProgramState* state = (ProgramState*)lpParameter;
 
-	HANDLE changeHandle = FindFirstChangeNotification(state->configDir, FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE);
+	HANDLE changeHandle = FindFirstChangeNotification(
+		state->configDir, FALSE, FILE_NOTIFY_CHANGE_LAST_WRITE
+	);
 	while (state->running)
 	{
 		HANDLE waitObjs[2];
@@ -151,7 +153,9 @@ int CALLBACK WinMain(
 
 	// Create a thread to monitor changes to config file
 	state.shutdownEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-	HANDLE threadHandle = CreateThread(NULL, 0, &ConfigMonitorProc, &state, 0, NULL);
+	HANDLE threadHandle = CreateThread(
+		NULL, 0, &ConfigMonitorProc, &state, 0, NULL
+	);
 
 	// Message loop
 	state.running = true;
