@@ -5,4 +5,6 @@
 #define STR_EQUAL(lhs, rhs) (strcmp(lhs, rhs) == 0)
 #define TO_NUM(x) strtol(x, 0, 0)
 
+void DebugPrint(const char* format, ...);
+
 #endif

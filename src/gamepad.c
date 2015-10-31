@@ -154,6 +154,31 @@ gb_Ini_HRT GamepadIniHandler(
 
 		button->extras.wheel.amount = amount;
 	}
+	else if (STR_EQUAL(name, "keycode_up"))
+	{
+		ENSURE(button->type == BTN_STICK, "Invalid button property");
+		button->extras.stick.codes[STICK_UP] = (WORD)TO_NUM(value);
+	}
+	else if (STR_EQUAL(name, "keycode_down"))
+	{
+		ENSURE(button->type == BTN_STICK, "Invalid button property");
+		button->extras.stick.codes[STICK_DOWN] = (WORD)TO_NUM(value);
+	}
+	else if (STR_EQUAL(name, "keycode_left"))
+	{
+		ENSURE(button->type == BTN_STICK, "Invalid button property");
+		button->extras.stick.codes[STICK_LEFT] = (WORD)TO_NUM(value);
+	}
+	else if (STR_EQUAL(name, "keycode_right"))
+	{
+		ENSURE(button->type == BTN_STICK, "Invalid button property");
+		button->extras.stick.codes[STICK_RIGHT] = (WORD)TO_NUM(value);
+	}
+	else if (STR_EQUAL(name, "threshold"))
+	{
+		ENSURE(button->type == BTN_STICK, "Invalid button property");
+		button->extras.stick.threshold = ((float)TO_NUM(value)) / 100.f;
+	}
 	else if (STR_EQUAL(name, "image"))
 	{
 		ENSURE(LoadButtonImage(value, button), "Could not load image");
@@ -172,6 +197,15 @@ gb_Ini_HRT GamepadIniHandler(
 		{
 			button->type = BTN_WHEEL;
 			button->extras.wheel.amount = 1;
+		}
+		else if (STR_EQUAL(value, "stick"))
+		{
+			button->type = BTN_STICK;
+			button->extras.stick.threshold = 0.5f;
+			button->extras.stick.codes[STICK_UP] = VK_UP;
+			button->extras.stick.codes[STICK_DOWN] = VK_DOWN;
+			button->extras.stick.codes[STICK_LEFT] = VK_LEFT;
+			button->extras.stick.codes[STICK_RIGHT] = VK_RIGHT;
 		}
 		else
 		{

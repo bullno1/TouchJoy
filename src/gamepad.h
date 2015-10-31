@@ -13,6 +13,7 @@ typedef enum
 {
 	BTN_KEY,
 	BTN_WHEEL,
+	BTN_STICK,
 	BTN_QUIT
 } ButtonType;
 
@@ -27,6 +28,14 @@ typedef enum
 	ANCHOR_TOP,
 	ANCHOR_BOTTOM
 } VAnchorType;
+
+typedef enum
+{
+	STICK_UP,
+	STICK_DOWN,
+	STICK_LEFT,
+	STICK_RIGHT
+} StickDirection;
 
 typedef struct
 {
@@ -54,6 +63,13 @@ typedef struct
 			int direction;
 			DWORD amount;
 		} wheel;
+
+		struct
+		{
+			float threshold;
+			WORD codes[4];
+			bool states[4];
+		} stick;
 	} extras;
 } Button;
 

@@ -3,12 +3,20 @@
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRALEAN
 #include <Windows.h>
+#include <windowsx.h>
 
 #include "utils.h"
 
 #define MOUSEEVENTF_FROMTOUCH 0xFF515700
 #define BUTTON(HWND, VAR) \
 	Button* VAR = (Button*)GetWindowLongPtr(HWND, GWLP_USERDATA);
+
+typedef enum
+{
+	TOUCH_DOWN,
+	TOUCH_UP,
+	TOUCH_MOVE
+} TouchEvent;
 
 LRESULT CALLBACK Paint(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -88,6 +96,53 @@ void HandleWheelButton(Button* button, bool down)
 	SendInput(2, inputs, sizeof(INPUT));
 }
 
+void HandleStickButton(Button* button, TouchEvent event, int touchX, int touchY)
+{
+	float joyX, joyY;
+
+	if (event == TOUCH_UP)
+	{
+		// If the touch is released, the stick moves to its center position
+		joyX = 0.f;
+		joyY = 0.f;
+	}
+	else
+	{
+		// In other cases, use the real touch position to calculate stick position
+
+		joyX = (float)touchX / (float)button->width * 2.f - 1.f;
+		joyY = (float)touchY / (float)button->height * 2.f - 1.f;
+	}
+
+	bool newStates[4];
+	float threshold = button->extras.stick.threshold;
+	newStates[STICK_UP]    = joyY < -threshold;
+	newStates[STICK_DOWN]  = joyY >  threshold;
+	newStates[STICK_LEFT]  = joyX < -threshold;
+	newStates[STICK_RIGHT] = joyX >  threshold;
+
+	INPUT inputs[4];
+	int numInputs = 0;
+
+	for (int i = 0; i < 4; ++i)
+	{
+		if (newStates[i] != button->extras.stick.states[i])
+		{
+			INPUT* input = &inputs[numInputs++];
+			input->type = INPUT_KEYBOARD;
+			input->ki.wVk = button->extras.stick.codes[i];
+			input->ki.dwFlags = newStates[i] ? 0 : KEYEVENTF_KEYUP;
+			input->ki.wScan = 0;
+			input->ki.time = 0;
+			input->ki.dwExtraInfo = 0;
+		}
+
+		button->extras.stick.states[i] = newStates[i];
+	}
+
+	SendInput(numInputs, inputs, sizeof(INPUT));
+}
+
 void HandleUpDown(Button* button, bool down)
 {
 	switch (button->type)
@@ -111,7 +166,26 @@ LRESULT CALLBACK OnTouch(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 	if (GetTouchInputInfo((HTOUCHINPUT)lParam, 1, &touch, sizeof(TOUCHINPUT)))
 	{
-		if (touch.dwFlags & (TOUCHEVENTF_DOWN | TOUCHEVENTF_UP))
+		if (button->type == BTN_STICK)
+		{
+			TouchEvent event;
+			if (touch.dwFlags & TOUCHEVENTF_DOWN)
+			{
+				event = TOUCH_DOWN;
+			}
+			else if (touch.dwFlags & TOUCHEVENTF_UP)
+			{
+				event = TOUCH_UP;
+			}
+			else
+			{
+				event = TOUCH_MOVE;
+			}
+
+			// Once again, Windows uses a funny coordinate system
+			HandleStickButton(button, event, touch.x / 100 - GetButtonX(button), touch.y / 100 - GetButtonY(button));
+		}
+		else if (touch.dwFlags & (TOUCHEVENTF_DOWN | TOUCHEVENTF_UP))
 		{
 			HandleUpDown(button, touch.dwFlags & TOUCHEVENTF_DOWN);
 		}
@@ -125,10 +199,9 @@ LRESULT CALLBACK OnTouch(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	}
 }
 
-LRESULT CALLBACK OnMouse(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK OnMouseButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	UNUSED(wParam);
-	UNUSED(lParam);
 
 	if ((GetMessageExtraInfo() & MOUSEEVENTF_FROMTOUCH) == MOUSEEVENTF_FROMTOUCH)
 	{
@@ -137,7 +210,34 @@ LRESULT CALLBACK OnMouse(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	}
 
 	BUTTON(hWnd, button);
-	HandleUpDown(button, uMsg == WM_LBUTTONDOWN);
+	if (button->type == BTN_STICK)
+	{
+		TouchEvent event = uMsg == WM_LBUTTONDOWN ? TOUCH_DOWN : TOUCH_UP;
+		HandleStickButton(button, event, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+	}
+	else
+	{
+		HandleUpDown(button, uMsg == WM_LBUTTONDOWN);
+	}
+
+	return 0;
+}
+
+LRESULT CALLBACK OnMouseMove(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	UNUSED(uMsg);
+
+	if ((GetMessageExtraInfo() & MOUSEEVENTF_FROMTOUCH) == MOUSEEVENTF_FROMTOUCH)
+	{
+		// This is a fake mouse event
+		return 0;
+	}
+
+	BUTTON(hWnd, button);
+	if ((button->type == BTN_STICK) && (wParam & MK_LBUTTON))
+	{
+		HandleStickButton(button, TOUCH_MOVE, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+	}
 
 	return 0;
 }
@@ -161,7 +261,9 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		return OnTouch(hWnd, uMsg, wParam, lParam);
 	case WM_LBUTTONDOWN:
 	case WM_LBUTTONUP:
-		return OnMouse(hWnd, uMsg, wParam, lParam);
+		return OnMouseButton(hWnd, uMsg, wParam, lParam);
+	case WM_MOUSEMOVE:
+		return OnMouseMove(hWnd, uMsg, wParam, lParam);
 	default:
 		return DefWindowProc(hWnd, uMsg, wParam, lParam);
 	}
