@@ -29,7 +29,7 @@ void ShowParseError(ParseError err)
 		msgBuff,
 		MAX_ERROR_LENGTH,
 		"%s\nLine: %d",
-		err.message, err.line
+		err.message,(int)err.line
 	);
 	MessageBox(NULL, msgBuff, "Error while loading config", MB_OK);
 }
